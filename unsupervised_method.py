@@ -79,10 +79,7 @@ print('Dropping rows with missing entries...')
 data_file.dropna(axis=0, inplace=True)
 
 # =============================================================================
-# Split file into train and test/validation data;
-# train a classifier and score its performance on test data
-# Map diagnosis of 1, 2, 3, 4, to 1 for binary classification as presence or
-# absence of disease.
+# Split file into train and test/validation data; normalise features
 # =============================================================================
 test_size = 0.1
 diagnosis = data_file['Diagnosis']
@@ -116,8 +113,9 @@ print(feature_dict)
 # =============================================================================
 # Using only the features identified by the PCA analysis, train a model and
 # evaluate its performance on the test data. The unsupervised model used is
-# KMeans Clustering. Since the approach is classification, the confusion
-# matrix has been calculated and accuracy estimated from it.
+# Hierarchical (Agglomerative) Clustering. Since the approach is
+# multi-class classification, the confusion matrix has been calculated and
+# accuracy estimated from it.
 # =============================================================================
 selected_features = feature_dict[1].to_list()
 model = AgglomerativeClustering(n_clusters=5)  # 5 classes, so 5 clusters
