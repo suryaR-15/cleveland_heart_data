@@ -25,4 +25,10 @@ Column names and entry meanings obtained from file heart-disease.names.
 14. Diagnosis of heart disease - angiographic disease status
                                  (< 50% diameter narrowing: 0
                                   > 50% diameter narrowing: 1, 2, 3, 4
-                                    - converted to 1)
+                                 )
+								 
+Supervised learning using logistic regression 
+(0, 1 - converted labels 1, 2, 3, 4 to 1) to predict presence or absence of disease
+
+Unsupervised learning after dimensionality reduction by PCA
+Classifies subjects into any one of 5 classes (0, 1, 2, 3, 4)

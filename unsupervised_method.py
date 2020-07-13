@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Created on Thu Jul  2 15:58:36 2020
+Created on Mon Jul  6 09:14:19 2020
 
 @author: surya
 
@@ -30,16 +30,23 @@ Missing entries in the file have been represented with '?'.
 14. Diagnosis of heart disease - angiographic disease status
                                  (< 50% diameter narrowing: 0
                                   > 50% diameter narrowing: 1, 2, 3, 4
-                                    - converted to 1)
+                                 )
+
+Unlike in supervised_method.py, here the labels 1, 2, 3, and 4 have not been
+converted to 1 and a hierarchical clustering approach with 5 clusters have
+been trialled.
+
+Min. accuracy achieved is for diagnosis label 0 - 0.533
+Max. accuracy achieved is for diagnosis label 5 - 0.933
 """
 import pandas as pd
 import seaborn as sns
 import numpy as np
-from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import confusion_matrix
-import matplotlib.pyplot as plt
 from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import multilabel_confusion_matrix
+from sklearn.decomposition import PCA
+from sklearn.cluster import AgglomerativeClustering
 
 # =============================================================================
 # Read in the data, add column names to the dataframe and visualise the data
@@ -77,9 +84,8 @@ data_file.dropna(axis=0, inplace=True)
 # Map diagnosis of 1, 2, 3, 4, to 1 for binary classification as presence or
 # absence of disease.
 # =============================================================================
-test_size = 0.2
+test_size = 0.1
 diagnosis = data_file['Diagnosis']
-diagnosis = (diagnosis > 0).astype(int)
 data_file.drop(['Diagnosis'], axis=1, inplace=True)
 
 scaler = StandardScaler()
@@ -89,45 +95,47 @@ X_train, X_test, y_train, y_test = train_test_split(
 X_train = scaler.fit_transform(X_train)
 X_test = scaler.transform(X_test)
 
-classifier = LogisticRegression()
-classifier.fit(X_train, y_train)
-predictions = classifier.predict(X_test)
-score = confusion_matrix(y_test, predictions)
-print('\nConfusion matrix: ')
-print(score)
-print('Accuracy on test set when training with all features: {0:.3f}'.format(
-    (score[0][0] + score[1][1]) / len(y_test)))
+# =============================================================================
+# PCA to identify the features that contribute the most to labels. The number
+# of features to be selected is set automatically by option 'mle'.
+# The corresponding significant feature names are displayed by identifying
+# them from the largest PCA component scores.
+# =============================================================================
+pca = PCA(n_components='mle')
+pca.fit(X_train, y_train)
 
-feature_imp = pd.Series(classifier.coef_[0], index=data_file.columns)
-feature_imp.nlargest(13).plot(kind='barh')
-plt.title('Feature importances')
-plt.show()
-print('\nFeature importance plot available to view..')
+n_pcs = pca.components_.shape[0]
+most_important = [np.abs(pca.components_[i]).argmax() for i in range(n_pcs)]
+feature_names = data_file.columns
+most_important_names = [feature_names[most_important[i]] for i in range(n_pcs)]
+dic = {'PC{}'.format(i): most_important_names[i] for i in range(n_pcs)}
+feature_dict = pd.DataFrame(dic.items())
+print('\nMost important features on each component, after PCA:')
+print(feature_dict)
 
 # =============================================================================
-# Use only the important features to train a new model and see performance
-# When selecting features, look at absolute values of the importance metric
-# since some are negatively correlated. Scale features to normalise them.
+# Using only the features identified by the PCA analysis, train a model and
+# evaluate its performance on the test data. The unsupervised model used is
+# KMeans Clustering. Since the approach is classification, the confusion
+# matrix has been calculated and accuracy estimated from it.
 # =============================================================================
-no_features = 10
-feature_index = 13 - no_features
-sorted_features = feature_imp.reindex(feature_imp.abs().sort_values().index)
-imp_features = sorted_features[feature_index:]
-imp_features_list = imp_features.index.to_list()
-
-classifier_2 = LogisticRegression()
+selected_features = feature_dict[1].to_list()
+model = AgglomerativeClustering(n_clusters=5)  # 5 classes, so 5 clusters
 X_train, X_test, y_train, y_test = train_test_split(
-    data_file[imp_features_list], diagnosis,
+    data_file[selected_features], diagnosis,
     test_size=test_size, random_state=1)
-scaler_2 = StandardScaler()
-X_train = scaler_2.fit_transform(X_train)
-X_test = scaler_2.transform(X_test)
+scaler2 = StandardScaler()
+X_train = scaler2.fit_transform(X_train)
+X_test = scaler2.transform(X_test)
 
-classifier_2.fit(X_train, y_train)
-predictions = classifier_2.predict(X_test)
-score = confusion_matrix(y_test, predictions)
-print('Confusion matrix: ')
+model.fit(X_train)
+predictions = model.fit_predict(X_test)
+score = multilabel_confusion_matrix(y_test, predictions)
+print('\nClustering using these important features...')
+print('\nTesting model...Confusion matrices for each diagnosis label: ')
 print(score)
-print('Accuracy after using just {0} most important features out of 13\
- : {1:.3f}'.format(no_features, (score[0][0] + score[1][1])/len(y_test)))
-print('The features used were: {0}'.format(imp_features_list))
+acc = []
+for i in range(5):
+    s = (score[i][0][0] + score[i][1][1]) / len(y_test)
+    acc.append("%.3f" % s)  # format to 3 decimal places
+print('Accuracy for each diagnosis label: {0}'.format(acc))
